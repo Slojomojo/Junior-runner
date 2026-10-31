@@ -1,0 +1,95 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Junior Runner</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#101827;color:white;overflow:hidden}
+#game{position:relative;width:100vw;height:100vh;height:100dvh;overflow:hidden;background:linear-gradient(#68c5f5 0%,#d8f5ff 72%,#83c94b 72%)}
+#sun{position:absolute;right:12%;top:9%;width:65px;height:65px;border-radius:50%;background:#ffe66d;box-shadow:0 0 35px #fff3a0}
+#clouds{position:absolute;top:15%;left:10%;font-size:55px;opacity:.8}
+#ground{position:absolute;bottom:0;width:100%;height:28%;background:repeating-linear-gradient(90deg,#369c39 0 35px,#43b847 35px 70px);border-top:9px solid #236e2b}
+#player{position:absolute;left:65px;bottom:28%;width:48px;height:58px;background:#ef4444;border:4px solid #9f2020;border-radius:14px 14px 8px 8px;z-index:3}
+#player:before{content:"";position:absolute;right:5px;top:10px;width:8px;height:8px;background:white;border-radius:50%;box-shadow:2px 1px 0 2px #111}
+#player:after{content:"";position:absolute;bottom:-9px;left:4px;width:12px;height:12px;background:#222;border-radius:50%;box-shadow:22px 0 #222}
+.obstacle{position:absolute;bottom:28%;width:38px;height:48px;background:#654321;border:4px solid #3d2818;border-radius:8px 8px 3px 3px;z-index:2}
+#hud{position:absolute;top:15px;left:15px;right:15px;display:flex;justify-content:space-between;align-items:center;color:#142b44;font-weight:bold;font-size:19px;z-index:5}
+#controls{position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center;gap:12px;z-index:8}
+button{border:0;border-radius:14px;padding:13px 20px;background:#172554;color:white;font-weight:bold;font-size:16px;box-shadow:0 4px 0 #0b1435;cursor:pointer}
+#overlay{position:absolute;inset:0;background:#071426c9;display:flex;align-items:center;justify-content:center;text-align:center;z-index:10;padding:20px}
+.panel{background:#fff;color:#172554;border-radius:22px;padding:28px 22px;width:min(90%,360px);box-shadow:0 12px 35px #0005}
+.panel h1{font-size:34px;margin:0 0 10px}
+.panel p{line-height:1.5}
+#overlay button{background:#16a34a;box-shadow:0 4px #11632e}
+#hint{font-size:12px;color:#475569}
+</style>
+</head>
+<body>
+<div id="game">
+<div id="sun"></div>
+<div id="clouds">☁️</div>
+<div id="hud"><span>🏃 JUNIOR RUNNER</span><span id="score">Score: 0</span><span id="best">Best: 0</span></div>
+<div id="player"></div>
+<div id="ground"></div>
+<div id="overlay"><div class="panel"><h1>🏃 Junior Runner</h1><p>Jump over obstacles and see how far you can run!</p><p id="hint">Press SPACE or tap JUMP to play.</p><button onclick="startGame()">START GAME</button></div></div>
+<div id="controls"><button id="jumpBtn">⬆ JUMP</button><button id="pauseBtn">Ⅱ PAUSE</button><button id="soundBtn">🔊 SOUND ON</button></div>
+</div>
+<script>
+const player=document.getElementById('player');
+const game=document.getElementById('game');
+const overlay=document.getElementById('overlay');
+const scoreText=document.getElementById('score');
+const bestText=document.getElementById('best');
+let running=false,paused=false,over=false,jumping=false;
+let y=0,vy=0,score=0,speed=5,obstacles=[],lastSpawn=0,lastTime=0,raf=0,sound=true;
+let best=Number(localStorage.getItem('juniorBest')||0);
+bestText.textContent='Best: '+best;
+function beep(freq=500){if(!sound)return;try{let c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;g.gain.value=.06;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.08);o.onended=()=>c.close()}catch(e){}}
+function startGame(){
+cancelAnimationFrame(raf);obstacles.forEach(o=>o.el.remove());obstacles=[];
+score=0;speed=5;y=0;vy=0;jumping=false;over=false;paused=false;running=true;
+scoreText.textContent='Score: 0';overlay.style.display='none';lastTime=performance.now();lastSpawn=lastTime+1000;raf=requestAnimationFrame(loop);
+}
+function jump(){
+if(!running||paused||over||jumping)return;
+jumping=true;vy=14;beep(650);
+}
+function endGame(){
+running=false;over=true;beep(150);
+overlay.innerHTML='<div class="panel"><h1>GAME OVER!</h1><p>Your score: <b>'+score+'</b></p><p>Best score: <b>'+best+'</b></p><button onclick="startGame()">PLAY AGAIN</button></div>';
+overlay.style.display='flex';
+}
+function loop(t){
+if(!running||paused)return;
+let dt=Math.min((t-lastTime)/16.67,2);lastTime=t;
+if(jumping){y+=vy*dt;vy-=.75*dt;if(y<=0){y=0;jumping=false}}
+player.style.transform='translateY('+(-y)+'px)';
+if(t-lastSpawn>Math.max(650,1500-score*5)){
+let el=document.createElement('div');el.className='obstacle';game.appendChild(el);
+let x=game.clientWidth+20;obstacles.push({el,x,passed:false});lastSpawn=t;
+}
+for(let o of obstacles){
+o.x-=speed*dt;o.el.style.left=o.x+'px';
+let pr=player.getBoundingClientRect(),r=o.el.getBoundingClientRect();
+if(pr.right>r.left+5&&pr.left<r.right-5&&pr.bottom>r.top+5&&pr.top<r.bottom-5){endGame();return}
+if(!o.passed&&o.x+38<65){o.passed=true;score++;scoreText.textContent='Score: '+score;if(score>best){best=score;localStorage.setItem('juniorBest',best);bestText.textContent='Best: '+best}speed=Math.min(12,5+score*.12)}
+}
+obstacles=obstacles.filter(o=>{if(o.x<-50){o.el.remove();return false}return true});
+raf=requestAnimationFrame(loop);
+}
+document.getElementById('jumpBtn').addEventListener('pointerdown',e=>{e.preventDefault();jump()});
+document.getElementById('pauseBtn').onclick=()=>{
+if(!running&&!paused)return;
+paused=!paused;
+if(paused){cancelAnimationFrame(raf);overlay.innerHTML='<div class="panel"><h1>PAUSED</h1><button onclick="resumeGame()">RESUME</button></div>';overlay.style.display='flex'}
+};
+function resumeGame(){paused=false;overlay.style.display='none';lastTime=performance.now();raf=requestAnimationFrame(loop)}
+document.getElementById('soundBtn').onclick=()=>{sound=!sound;document.getElementById('soundBtn').textContent=sound?'🔊 SOUND ON':'🔇 SOUND OFF';beep()};
+document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();jump()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&running){paused=true;cancelAnimationFrame(raf);overlay.innerHTML='<div class="panel"><h1>PAUSED</h1><button onclick="resumeGame()">RESUME</button></div>';overlay.style.display='flex'}});
+</script>
+</body>
+</html>
